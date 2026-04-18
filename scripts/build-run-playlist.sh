@@ -8,7 +8,7 @@ CROSSFADE=4
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") -r RAMP -i COVER -o OUTPUT [-d CROSSFADE_SECONDS]
+Usage: $(basename "$0") -r RAMP -i COVER -o OUTPUT [-d CROSSFADE_SECONDS] [-b BPM] [-m MIN]
 
 Build a continuous run playlist from a ramp file: retempo each track, mix with
 crossfades, wrap as mp4 ready to upload to YouTube.
@@ -23,6 +23,8 @@ Ramp file format — one track per line, "path target_bpm":
   -i COVER     cover image for the video
   -o OUTPUT    output mp4 path
   -d SECONDS   crossfade duration (default: ${CROSSFADE})
+  -b BPM       overlay BPM badge on cover (passed to tovideo.sh)
+  -m MIN       overlay runtime badge on cover (passed to tovideo.sh)
   -h           show this help
 EOF
   exit "${1:-0}"
@@ -31,12 +33,16 @@ EOF
 ramp=""
 cover=""
 output=""
-while getopts ":r:i:o:d:h" opt; do
+bpm=""
+mins=""
+while getopts ":r:i:o:d:b:m:h" opt; do
   case $opt in
     r) ramp=$OPTARG ;;
     i) cover=$OPTARG ;;
     o) output=$OPTARG ;;
     d) CROSSFADE=$OPTARG ;;
+    b) bpm=$OPTARG ;;
+    m) mins=$OPTARG ;;
     h) usage 0 ;;
     *) usage 1 ;;
   esac
@@ -92,7 +98,10 @@ printf '\nmixing %d tracks\n' "${#retempoed[@]}"
 "$SCRIPT_DIR/mix.sh" -d "$CROSSFADE" -o "$mix" "${retempoed[@]}"
 
 printf '\nwrapping as video\n'
-"$SCRIPT_DIR/tovideo.sh" -i "$cover" -a "$mix" -o "$output"
+overlay_args=()
+[[ -n "$bpm" ]] && overlay_args+=(-b "$bpm")
+[[ -n "$mins" ]] && overlay_args+=(-d "$mins")
+"$SCRIPT_DIR/tovideo.sh" -i "$cover" -a "$mix" -o "$output" "${overlay_args[@]}"
 
 printf '\ndone → %s\n' "$output"
 if [[ ${#skipped[@]} -gt 0 ]]; then

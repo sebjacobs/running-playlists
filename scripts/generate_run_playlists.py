@@ -228,13 +228,18 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
         if not args.cover.exists():
             print(f"  cover not found at {args.cover} — skipping video", file=sys.stderr)
         else:
-            def wrap_video(mix_out: Path, video_out: Path, cover: Path) -> None:
+            bpm_label = str(int(args.target_bpm))
+            mins_label = str(int(args.duration_min))
+            def wrap_video(mix_out: Path, video_out: Path, cover: Path,
+                           bpm: str, mins: str) -> None:
                 print(f"  wrapping → {video_out}", file=sys.stderr)
                 subprocess.run([str(TOVIDEO_SH), "-i", str(cover),
-                                "-a", str(mix_out), "-o", str(video_out)], check=True)
+                                "-a", str(mix_out), "-o", str(video_out),
+                                "-b", bpm, "-d", mins], check=True)
             video_out = exports_dir / f"{slug}.mp4"
             video_futures.append(video_executor.submit(
-                wrap_video, mix_out, video_out, args.cover))
+                wrap_video, mix_out, video_out, args.cover,
+                bpm_label, mins_label))
 
 
 def main() -> int:
