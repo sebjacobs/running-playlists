@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import os
 import random
 import sqlite3
 import subprocess
@@ -107,6 +109,8 @@ def main() -> int:
     p.add_argument("--min-duration", type=float, default=180.0)
     p.add_argument("--max-duration", type=float, default=420.0)
     p.add_argument("--crossfade", type=int, default=4)
+    p.add_argument("--workers", type=int, default=max(2, (os.cpu_count() or 4) // 2),
+                   help="parallel retempo workers (default: half of cpu count)")
     p.add_argument("--output-dir", type=Path, default=REPO / "tmp" / "playlists")
     p.add_argument("--cover", type=Path, default=DEFAULT_COVER,
                    help=f"cover image for mp4 wrap (default: {DEFAULT_COVER.relative_to(REPO)})")
@@ -147,14 +151,25 @@ def main() -> int:
         for a, t, bpm, d, _ in pl:
             print(f"  {int(bpm)} bpm  {d/60:4.1f}m  {a} — {t}", file=sys.stderr)
 
-        retempoed_paths = []
         work = args.output_dir / f"{slug}_work"
         work.mkdir(exist_ok=True)
+        jobs = []
         for i, (a, t, bpm, _d, path) in enumerate(pl, 1):
             out = work / f"{i:02d}_{int(bpm)}to{int(args.target_bpm)}.mp3"
-            print(f"  [{i}/{len(pl)}] retempo {bpm}→{int(args.target_bpm)}: {Path(path).name}", file=sys.stderr)
-            retempo(Path(path), bpm, args.target_bpm, out)
-            retempoed_paths.append(str(out))
+            jobs.append((i, bpm, Path(path), out))
+
+        retempoed_paths = [None] * len(jobs)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futures = {
+                ex.submit(retempo, src, bpm, args.target_bpm, out): (i, bpm, src, out)
+                for (i, bpm, src, out) in jobs
+            }
+            for fut in concurrent.futures.as_completed(futures):
+                i, bpm, src, out = futures[fut]
+                fut.result()
+                print(f"  [{i}/{len(jobs)}] retempo {bpm}→{int(args.target_bpm)}: {src.name}",
+                      file=sys.stderr)
+                retempoed_paths[i - 1] = str(out)
 
         mix_out = args.output_dir / f"{slug}.mp3"
         print(f"  mixing → {mix_out}", file=sys.stderr)
