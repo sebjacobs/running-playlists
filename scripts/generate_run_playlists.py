@@ -27,6 +27,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import mutagen
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3NoHeaderError
 from mutagen.mp3 import MP3
@@ -95,6 +96,46 @@ def retempo(src: Path, src_bpm: float, target_bpm: float, out: Path) -> None:
     wav.unlink()
     if stretched is not None:
         stretched.unlink()
+
+
+def probe_duration(path: Path) -> float:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    return float(out)
+
+
+def track_label(src: Path) -> str:
+    try:
+        f = mutagen.File(str(src), easy=True)
+        if f is not None:
+            artist = (f.tags.get("artist") or [""])[0].strip() if f.tags else ""
+            title = (f.tags.get("title") or [""])[0].strip() if f.tags else ""
+            if artist and title:
+                return f"{artist} - {title}"
+            if title:
+                return title
+    except Exception:
+        pass
+    return src.stem
+
+
+def write_tracklist(out_path: Path, sources: list[Path], retempoed: list[Path],
+                    crossfade: int) -> None:
+    lines = []
+    cursor = 0.0
+    for i, (src, rt) in enumerate(zip(sources, retempoed)):
+        start = max(0.0, cursor)
+        m, s = divmod(int(start), 60)
+        h, m = divmod(m, 60)
+        ts = f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+        lines.append(f"{ts} {track_label(src)}")
+        cursor += probe_duration(rt)
+        if i < len(retempoed) - 1:
+            cursor -= crossfade
+    out_path.write_text("\n".join(lines) + "\n")
 
 
 def read_tsv(tsv: Path) -> tuple[list[tuple], float]:
@@ -176,6 +217,12 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
     audio["genre"] = "D&B"
     audio["bpm"] = str(int(args.target_bpm))
     audio.save()
+
+    source_paths = [Path(p) for (_a, _t, _b, _d, p) in pl]
+    retempoed = [Path(p) for p in retempoed_paths if p is not None]
+    tracklist_path = exports_dir / f"{slug}_tracklist.txt"
+    write_tracklist(tracklist_path, source_paths, retempoed, args.crossfade)
+    print(f"  tracklist → {tracklist_path}", file=sys.stderr)
 
     if not args.no_video:
         if not args.cover.exists():
