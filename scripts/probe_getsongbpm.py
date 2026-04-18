@@ -52,6 +52,7 @@ def sample(
     n: int,
     artists: list[str] | None,
     genre: str | None,
+    min_duration: float | None,
     max_duration: float | None,
 ) -> list[tuple[str, str, float | None]]:
     conn = sqlite3.connect(db)
@@ -63,6 +64,9 @@ def sample(
     if genre:
         where.append("genre = ?")
         params.append(genre)
+    if min_duration is not None:
+        where.append("duration_s >= ?")
+        params.append(min_duration)
     if max_duration is not None:
         where.append("duration_s < ?")
         params.append(max_duration)
@@ -82,6 +86,8 @@ def main() -> int:
     p.add_argument("--n", type=int, default=10)
     p.add_argument("--artist", action="append", help="restrict to these artists (repeatable)")
     p.add_argument("--genre", help="restrict to exact genre string")
+    p.add_argument("--min-duration", type=float, default=120.0,
+                   help="skip tracks shorter than this (seconds) — excludes intros/outros/interludes")
     p.add_argument("--max-duration", type=float, help="exclude tracks longer than this (seconds)")
     p.add_argument("--raw", action="store_true", help="print first raw response")
     args = p.parse_args()
@@ -91,7 +97,7 @@ def main() -> int:
         print("BPM_API_KEY not set (try: uv run --env-file .env ...)", file=sys.stderr)
         return 1
 
-    tracks = sample(args.db, args.n, args.artist, args.genre, args.max_duration)
+    tracks = sample(args.db, args.n, args.artist, args.genre, args.min_duration, args.max_duration)
     if not tracks:
         print("no tracks found", file=sys.stderr)
         return 1

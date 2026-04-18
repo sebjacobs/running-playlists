@@ -44,7 +44,7 @@ def search(artist: str, title: str) -> tuple[float | None, int]:
     return float(matches[0]), len(matches)
 
 
-def sample(db: Path, artists, genre, max_duration, n):
+def sample(db: Path, artists, genre, min_duration, max_duration, n):
     conn = sqlite3.connect(db)
     where = ["artist IS NOT NULL", "title IS NOT NULL"]
     params: list = []
@@ -54,6 +54,9 @@ def sample(db: Path, artists, genre, max_duration, n):
     if genre:
         where.append("genre = ?")
         params.append(genre)
+    if min_duration is not None:
+        where.append("duration_s >= ?")
+        params.append(min_duration)
     if max_duration is not None:
         where.append("duration_s < ?")
         params.append(max_duration)
@@ -72,6 +75,8 @@ def main() -> int:
     p.add_argument("--db", required=True, type=Path)
     p.add_argument("--artist", action="append")
     p.add_argument("--genre")
+    p.add_argument("--min-duration", type=float, default=120.0,
+                   help="skip tracks shorter than this (seconds) — excludes intros/outros/interludes")
     p.add_argument("--max-duration", type=float)
     p.add_argument("--n", type=int, default=50)
     p.add_argument("--delay", type=float, default=1.5, help="seconds between requests")
@@ -79,7 +84,7 @@ def main() -> int:
                    help="double the returned bpm if below this threshold (DnB half-tempo fix)")
     args = p.parse_args()
 
-    tracks = sample(args.db, args.artist, args.genre, args.max_duration, args.n)
+    tracks = sample(args.db, args.artist, args.genre, args.min_duration, args.max_duration, args.n)
     if not tracks:
         print("no tracks found", file=sys.stderr)
         return 1
