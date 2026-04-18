@@ -136,6 +136,14 @@ def main() -> int:
 
     target_s = args.duration_min * 60
     remaining = list(tracks)
+    video_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+    video_futures: list[concurrent.futures.Future] = []
+
+    def wrap_video(mix_out: Path, video_out: Path, cover: Path) -> None:
+        print(f"  wrapping → {video_out}", file=sys.stderr)
+        subprocess.run([str(TOVIDEO_SH), "-i", str(cover),
+                        "-a", str(mix_out), "-o", str(video_out)], check=True)
+
     for n in range(1, args.count + 1):
         pl, total = build_playlist(remaining, target_s, args.tolerance_s)
         if not pl:
@@ -197,12 +205,15 @@ def main() -> int:
                 print(f"  cover not found at {args.cover} — skipping video", file=sys.stderr)
             else:
                 video_out = args.output_dir / f"{slug}.mp4"
-                print(f"  wrapping → {video_out}", file=sys.stderr)
-                subprocess.run([str(TOVIDEO_SH), "-i", str(args.cover),
-                                "-a", str(mix_out), "-o", str(video_out)], check=True)
+                video_futures.append(video_executor.submit(
+                    wrap_video, mix_out, video_out, args.cover))
 
         remaining = [t for t in remaining if t not in pl]
         random.shuffle(remaining)
+
+    for fut in video_futures:
+        fut.result()
+    video_executor.shutdown(wait=True)
 
     print("done", file=sys.stderr)
     return 0
