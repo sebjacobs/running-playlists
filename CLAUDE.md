@@ -10,7 +10,7 @@ Tools for building tempo-ramped run playlists. See `README.md` for the pipeline 
 
 ## Current focus
 
-Populating `bpm` across the catalogue — see `ROADMAP.md`. Lookup-first (GetSongBPM) with aubio as last-resort fallback; auto-detection proved unreliable on breakbeat-led genres.
+Playlist generation is the active layer: `scripts/generate_run_playlists.py` selects tracks at a target BPM from `music.db`, retempos, mixes with crossfades, and wraps as mp4 under `tmp/playlists/<bpm>bpm/<mins>mins/`. `scripts/extend_playlist_tsvs.py` tops up short tsvs. BPM ingestion pipeline is complete — see `ROADMAP.md` for done/open items.
 
 ## Tools
 

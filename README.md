@@ -12,6 +12,10 @@ The pipeline:
 
 `scripts/build-run-playlist.sh` orchestrates steps 3–5 from a ramp file (`path target_bpm` per line).
 
+`scripts/generate_run_playlists.py` runs the whole pipeline end-to-end: selects eligible tracks from `music.db` at a target BPM, builds artist-varied playlists targeting a duration, retempos each track in parallel, mixes with crossfades, tags, and wraps as mp4. Outputs land under `tmp/playlists/<bpm>bpm/<mins>mins/`. Supports `--from-tsv` to re-render an existing ramp at a new target BPM without re-selecting.
+
+`scripts/extend_playlist_tsvs.py` tops up a short ramp tsv to a target duration by picking fresh tracks from the same BPM pool — feed the output back into `generate_run_playlists.py --from-tsv` to render the extended mix.
+
 ## BPM data
 
 BPM data provided by [GetSongBPM.com](https://getsongbpm.com).
