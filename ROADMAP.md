@@ -1,33 +1,13 @@
 # Roadmap
 
-## Populate bpm for the catalogue — lookup first, detect as fallback
+## Done
 
-The indexer populates bpm for only a small fraction of tracks (mostly those already tagged at source). Aubio detection alone is unreliable for breakbeat-led genres (detected 109.40 for a 175-bpm track — tracks breakbeat, not kick; half-tempo heuristic doesn't cover this case).
+- **BPM ingestion** — `bpm_source` column on `tracks`, Beatport (strict `__NEXT_DATA__` parse + exact artist+title match, half-tempo doubling for DnB) + GetSongBPM lookup, manual-tap residual; aubio dropped from the ingestion path (unreliable on breakbeat). ~892 tracks tagged in DB and written back to file metadata via mutagen (TBPM / tmpo / BPM).
+- **Playlist generator** — `scripts/generate_run_playlists.py`: DB selection or `--from-tsv` re-render, artist-varied picking with duration tolerance, parallel retempo, crossfade mix, mp4 wrap with cover image, `<bpm>bpm/<mins>mins/` subfolder output, `--start-n` for numbering extensions without colliding with existing outputs.
+- **Playlist extension** — `scripts/extend_playlist_tsvs.py`: tops up a short ramp tsv to a target duration by picking fresh tracks from the same BPM pool, respecting artist variety within the extended list and a global exclusion list of tracks already used in other playlists at that BPM.
 
-- Add `bpm_source` column to `tracks` (values: `lookup`, `detected`, `manual`)
-- Lookup step keyed on `artist + title`, precedence **Beatport → GetSongBPM → manual tap**:
-  - **Beatport** (primary) — scrape, strong DnB coverage (100% on initial 5-track sample). Publishes half-tempo for DnB; double any returned value below 100 BPM. Rate-limit carefully (~1.5s/req)
-  - **GetSongBPM** (fallback) — free API, requires Referer header. Probe shows ~42% coverage on a 5-artist DnB sample with correct (non-half-tempo) values; misses remixes, interludes, and acoustic variants
-  - **Manual tap** (final fallback) — for the residual gap after lookups, tap out BPM by hand and record as `bpm_source='manual'`. Faster and more reliable than any detector on breakbeat-led material; never overwritten by subsequent runs
-  - ~~aubio~~ — confirmed unreliable on breakbeat (mostly half-tempo or wrong on first 20 DnB tracks). Keeping the probe script for reference but not using it in the ingestion path
-  - **Discogs** — still on the list if Beatport+GetSongBPM leaves a bigger gap than expected; BPM coverage patchy
-  - ~~Shazam via `shazamio`~~ — `search_track` broken (404/XML); also needs audio not text
-  - ~~Spotify `audio_features`~~ — endpoint restricted for new apps since late 2024
-  - ~~AcousticBrainz~~ — shut down 2022
-- Fall back to aubio only when no API match; cross-check with a second detector (`bpm-tools`, essentia) before trusting
-- Never overwrite `manual` values
+## Open
 
-## Write BPM back to audio file metadata
-
-Once a track's BPM is trusted (lookup or manual), write it to the audio file's tags so the value survives outside `music.db` and is visible in every player. Use **mutagen** for in-place tag updates across formats — no re-encoding:
-
-- MP3 → `TBPM` frame (ID3v2)
-- M4A/AAC → `tmpo` atom
-- FLAC/Vorbis → `BPM` tag
-- OGG/Opus → `BPM` comment
-
-Only write when `bpm_source` is `lookup_beatport`, `lookup_getsongbpm`, or `manual` — never from a detector guess. Skip files that already have a matching tag.
-
-## First lookup target
-
-Prototype the GetSongBPM lookup against a small set of artists with well-catalogued discographies (excluding DJ mixes > 10 min). Confirms coverage and BPM accuracy on a tight genre cluster before rolling out to the full catalogue.
+- **Extension smart-fit** — the greedy picker sometimes lands well short of target (e.g. 28m → 33.7m) because any second pick would overshoot the upper tolerance. A two-pass or subset-sum picker that swaps a long pick for two shorter ones when the gap allows would hit target more reliably.
+- **Consolidate off-target extension buckets** — extensions can land in 34/35/37/38min folders even when the intent was 36, because the slug derives from the actual total. Options: widen bucket rounding (e.g. nearest 5min), or expose a CLI flag to force the target bucket regardless of actual duration.
+- **Lookup coverage** — residual ~41% of the DnB slice under 10min still lacks a trusted BPM source. Prioritise manual tap for frequently-picked artists over adding more scrapers.
