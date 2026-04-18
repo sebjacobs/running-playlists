@@ -218,6 +218,8 @@ def main() -> int:
     p.add_argument("--from-tsv", type=Path, nargs="+",
                    help="re-render existing ramp tsv(s) at --target-bpm instead of "
                         "selecting fresh tracks from --db")
+    p.add_argument("--start-n", type=int, default=1,
+                   help="number the first output playlist as N (default: 1)")
     args = p.parse_args()
 
     if not args.from_tsv and not args.db:
@@ -232,7 +234,7 @@ def main() -> int:
     video_futures: list[concurrent.futures.Future] = []
 
     if args.from_tsv:
-        for n, tsv in enumerate(args.from_tsv, 1):
+        for n, tsv in enumerate(args.from_tsv, args.start_n):
             pl, total_s = read_tsv(tsv)
             if not pl:
                 print(f"{tsv}: empty — skipping", file=sys.stderr)
@@ -258,7 +260,7 @@ def main() -> int:
         target_s = args.duration_min * 60
         remaining = list(tracks)
 
-        for n in range(1, args.count + 1):
+        for n in range(args.start_n, args.start_n + args.count):
             pl, total = build_playlist(remaining, target_s, args.tolerance_s)
             if not pl:
                 print(f"playlist {n}: no tracks left — stopping", file=sys.stderr)
