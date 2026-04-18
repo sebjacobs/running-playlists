@@ -120,10 +120,13 @@ def read_tsv(tsv: Path) -> tuple[list[tuple], float]:
 
 def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
                     dur_min: int, args, video_executor, video_futures) -> None:
-    subdir = args.output_dir / f"{int(args.target_bpm)}bpm" / f"{dur_min}mins"
-    subdir.mkdir(parents=True, exist_ok=True)
+    bucket = Path(f"{int(args.target_bpm)}bpm") / f"{dur_min}mins"
+    exports_dir = args.output_dir / bucket
+    sources_dir = args.sources_dir / bucket
+    exports_dir.mkdir(parents=True, exist_ok=True)
+    sources_dir.mkdir(parents=True, exist_ok=True)
 
-    ramp_path = subdir / f"{slug}.tsv"
+    ramp_path = sources_dir / f"{slug}.tsv"
     with ramp_path.open("w") as f:
         f.write(f"# target_bpm={int(args.target_bpm)}, duration={total_s/60:.1f}m\n")
         for _a, _t, bpm, _d, path in pl:
@@ -133,7 +136,7 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
         label = f"{a} — {t}" if (a or t) else Path(path).name
         print(f"  {int(bpm)} bpm  {d/60:4.1f}m  {label}", file=sys.stderr)
 
-    work = subdir / f"{slug}_work"
+    work = sources_dir / f"{slug}_work"
     work.mkdir(exist_ok=True)
     jobs = []
     for i, (_a, _t, bpm, _d, path) in enumerate(pl, 1):
@@ -153,7 +156,7 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
                   file=sys.stderr)
             retempoed_paths[i - 1] = str(out)
 
-    mix_out = subdir / f"{slug}.mp3"
+    mix_out = exports_dir / f"{slug}.mp3"
     print(f"  mixing → {mix_out}", file=sys.stderr)
     subprocess.run([str(MIX_SH), "-d", str(args.crossfade), "-o", str(mix_out),
                     *retempoed_paths], check=True)
@@ -182,7 +185,7 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
                 print(f"  wrapping → {video_out}", file=sys.stderr)
                 subprocess.run([str(TOVIDEO_SH), "-i", str(cover),
                                 "-a", str(mix_out), "-o", str(video_out)], check=True)
-            video_out = subdir / f"{slug}.mp4"
+            video_out = exports_dir / f"{slug}.mp4"
             video_futures.append(video_executor.submit(
                 wrap_video, mix_out, video_out, args.cover))
 
@@ -203,7 +206,11 @@ def main() -> int:
     p.add_argument("--crossfade", type=int, default=4)
     p.add_argument("--workers", type=int, default=max(2, (os.cpu_count() or 4) // 2),
                    help="parallel retempo workers (default: half of cpu count)")
-    p.add_argument("--output-dir", type=Path, default=REPO / "tmp" / "playlists")
+    p.add_argument("--output-dir", type=Path, default=REPO / "tmp" / "playlists",
+                   help="where finished mp3/mp4 deliverables land")
+    p.add_argument("--sources-dir", type=Path, default=None,
+                   help="where ramp tsvs and _work retempo dirs land "
+                        "(default: sibling 'playlist_sources' of --output-dir)")
     p.add_argument("--cover", type=Path, default=DEFAULT_COVER,
                    help=f"cover image for mp4 wrap (default: {DEFAULT_COVER.relative_to(REPO)})")
     p.add_argument("--no-video", action="store_true",
@@ -216,7 +223,11 @@ def main() -> int:
     if not args.from_tsv and not args.db:
         p.error("--db is required unless --from-tsv is supplied")
 
+    if args.sources_dir is None:
+        args.sources_dir = args.output_dir.parent / "playlist_sources"
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    args.sources_dir.mkdir(parents=True, exist_ok=True)
     video_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
     video_futures: list[concurrent.futures.Future] = []
 
