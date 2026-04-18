@@ -149,7 +149,7 @@ def main() -> int:
         if not pl:
             print(f"playlist {n}: no tracks left — stopping", file=sys.stderr)
             break
-        slug = f"run{int(args.target_bpm)}_{n}"
+        slug = f"run_{int(args.target_bpm)}bpm_{int(round(args.duration_min))}min_{n}"
         ramp_path = args.output_dir / f"{slug}.tsv"
         with ramp_path.open("w") as f:
             f.write(f"# target_bpm={int(args.target_bpm)}, duration={total/60:.1f}m\n")
