@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="cadence" width="240">
+  <img src="assets/logo-wordmark.png" alt="cadence" width="360">
 </p>
 
 # cadence
