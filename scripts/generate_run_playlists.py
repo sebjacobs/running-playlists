@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import datetime
 import os
 import random
 import re
@@ -282,6 +283,7 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.sources_dir.mkdir(parents=True, exist_ok=True)
+    today = datetime.date.today().isoformat()
     video_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
     video_futures: list[concurrent.futures.Future] = []
 
@@ -292,7 +294,7 @@ def main() -> int:
                 print(f"{tsv}: empty — skipping", file=sys.stderr)
                 continue
             dur_min = int(round((total_s or args.duration_min * 60) / 60))
-            slug = f"run_{int(args.target_bpm)}bpm_{dur_min}min_{n}"
+            slug = f"{today}_run_{int(args.target_bpm)}bpm_{dur_min}min_{n}"
             render_playlist(n, pl, total_s, slug, dur_min, args, video_executor, video_futures)
     else:
         random.seed(args.seed)
@@ -318,7 +320,7 @@ def main() -> int:
                 print(f"playlist {n}: no tracks left — stopping", file=sys.stderr)
                 break
             dur_min = int(round(args.duration_min))
-            slug = f"run_{int(args.target_bpm)}bpm_{dur_min}min_{n}"
+            slug = f"{today}_run_{int(args.target_bpm)}bpm_{dur_min}min_{n}"
             render_playlist(n, pl, total, slug, dur_min, args, video_executor, video_futures)
             remaining = [t for t in remaining if t not in pl]
             random.shuffle(remaining)
