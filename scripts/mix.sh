@@ -50,6 +50,6 @@ for ((i = 1; i < n; i++)); do
 done
 filter=${filter%;}
 
-printf 'mixing %d tracks with %ds crossfade → %s\n' "$n" "$DURATION" "$output"
+printf 'mixing %d tracks with %ss crossfade → %s\n' "$n" "$DURATION" "$output"
 ffmpeg -y "${ff_inputs[@]}" -filter_complex "$filter" "$output"
 printf 'wrote %s\n' "$output"
