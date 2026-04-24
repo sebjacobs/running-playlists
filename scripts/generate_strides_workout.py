@@ -147,6 +147,9 @@ def main() -> int:
                    help="comma-separated artist name fragments to prioritise first "
                         "(case-insensitive substring match, e.g. 'technimatic,technicolour')")
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUT)
+    p.add_argument("--cover", type=Path, default=REPO / "assets" / "cover.png",
+                   help="cover image for mp4 wrap")
+    p.add_argument("--no-video", action="store_true", help="skip mp4 wrap")
     args = p.parse_args()
 
     # Derived timing constants (all at target BPM after retempoing)
@@ -276,6 +279,23 @@ def main() -> int:
 
     total_s = probe_duration(out_mp3)
     print(f"\nDone → {out_mp3}  ({total_s / 60:.1f} min)", file=sys.stderr)
+
+    # Wrap as mp4 for YouTube
+    if not args.no_video:
+        tovideo = REPO / "scripts" / "tovideo.sh"
+        if not args.cover.exists():
+            print(f"Cover not found at {args.cover} — skipping mp4 wrap", file=sys.stderr)
+        else:
+            out_mp4 = args.output_dir / f"{slug}.mp4"
+            print(f"Wrapping → {out_mp4.name}", file=sys.stderr)
+            subprocess.run(
+                [str(tovideo), "-i", str(args.cover), "-a", str(out_mp3),
+                 "-o", str(out_mp4), "-b", str(int(args.target_bpm)),
+                 "-d", str(actual_min)],
+                check=True,
+            )
+            print(f"Done → {out_mp4}", file=sys.stderr)
+
     return 0
 
 
