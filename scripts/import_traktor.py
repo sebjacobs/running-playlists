@@ -7,6 +7,10 @@ Populates per-track columns (no overwrite of existing bpm/genre):
   - traktor_beatgrid_ms   float ms from <CUE_V2 TYPE="4"> (AutoGrid anchor)
   - traktor_imported_at   ISO timestamp
 
+Also rebuilds `traktor_cues` (one row per non-grid CUE_V2 — i.e. user-placed
+hotcues, fade points, loops). Existing rows for a matched track are deleted
+and replaced on each run, so re-running picks up edits made in Traktor.
+
 Matches NML entries to music.db rows by absolute file path.
 
 Usage:
@@ -32,11 +36,40 @@ COLUMNS = {
 }
 
 
+CUE_TYPE_LABELS = {
+    0: "cue",
+    1: "fade_in",
+    2: "fade_out",
+    3: "load",
+    4: "grid",
+    5: "loop",
+}
+
+
 def ensure_columns(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(tracks)")}
     for name, decl in COLUMNS.items():
         if name not in cols:
             conn.execute(f"ALTER TABLE tracks ADD COLUMN {name} {decl}")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS traktor_cues (
+            id        INTEGER PRIMARY KEY,
+            track_id  INTEGER NOT NULL,
+            hotcue    INTEGER,
+            type      INTEGER NOT NULL,
+            type_label TEXT,
+            name      TEXT,
+            start_ms  REAL NOT NULL,
+            len_ms    REAL,
+            FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_traktor_cues_track_id "
+        "ON traktor_cues (track_id)"
+    )
     conn.commit()
 
 
@@ -58,20 +91,39 @@ def parse_entry(entry: ET.Element) -> dict | None:
         return None
     tempo = entry.find("TEMPO")
     key = entry.find("MUSICAL_KEY")
-    # AutoGrid is TYPE=4; there's typically exactly one per track
     grid_ms = None
+    cues: list[dict] = []
     for cue in entry.findall("CUE_V2"):
-        if cue.get("TYPE") == "4":
-            try:
-                grid_ms = float(cue.get("START", ""))
-            except ValueError:
-                grid_ms = None
-            break
+        try:
+            t = int(cue.get("TYPE", ""))
+            start = float(cue.get("START", ""))
+        except ValueError:
+            continue
+        if t == 4 and grid_ms is None:
+            grid_ms = start
+            continue
+        try:
+            length = float(cue.get("LEN", "") or 0.0)
+        except ValueError:
+            length = 0.0
+        try:
+            hot = int(cue.get("HOTCUE", ""))
+        except ValueError:
+            hot = None
+        cues.append({
+            "hotcue": hot,
+            "type": t,
+            "type_label": CUE_TYPE_LABELS.get(t),
+            "name": cue.get("NAME"),
+            "start_ms": start,
+            "len_ms": length,
+        })
     return {
         "path": path,
         "bpm": float(tempo.get("BPM")) if tempo is not None and tempo.get("BPM") else None,
         "key": int(key.get("VALUE")) if key is not None and key.get("VALUE") else None,
         "beatgrid_ms": grid_ms,
+        "cues": cues,
     }
 
 
@@ -139,8 +191,26 @@ def main() -> None:
                 for tid, r in matched
             ],
         )
+
+        # Rebuild cues for matched tracks: delete-then-insert keeps re-runs idempotent
+        matched_ids = [tid for tid, _ in matched]
+        conn.executemany(
+            "DELETE FROM traktor_cues WHERE track_id = ?",
+            [(tid,) for tid in matched_ids],
+        )
+        cue_rows = [
+            (tid, c["hotcue"], c["type"], c["type_label"],
+             c["name"], c["start_ms"], c["len_ms"])
+            for tid, r in matched for c in r["cues"]
+        ]
+        conn.executemany(
+            """INSERT INTO traktor_cues
+               (track_id, hotcue, type, type_label, name, start_ms, len_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            cue_rows,
+        )
         conn.commit()
-        print(f"\nUpdated {len(matched)} rows at {now}")
+        print(f"\nUpdated {len(matched)} rows, inserted {len(cue_rows)} cues at {now}")
     finally:
         conn.close()
 
