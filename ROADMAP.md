@@ -15,6 +15,8 @@
 ## Now
 
 - **Tune strides intro-bars heuristic** — listen through the 30-min and 75-min mixes and check whether `--intro-bars 48` (≈66s) consistently lands in the post-drop verse across different tracks. Adjust default or add per-track overrides if needed.
+- **Decide on `--phrases-per-track` default** — generated a 60-min strides mix today with `--phrases-per-track 3` (3 consecutive 32-bar phrases per track, vs. default 1). Listen on the run; if the longer per-track exposure feels right, bump the default in `generate_strides_workout.py` (one-line change). Caveat: with default `--xfade-bars 16`, within-track phrase boundaries get 16-bar self-overlay (subtle thickening, possibly desirable). If it sounds muddy, lower xfade-bars to 4–8 alongside.
+- **Investigate mix.sh exit-234 on long phrase chains** — the strides 60-min run with `--phrases-per-track 1` (164 phrases) produced a valid 60.34 min mp3 but `mix.sh` exited 234, which crashed the python wrapper before tracklist + cleanup. Output is correct; only the sidecar was lost. Re-running with `--phrases-per-track 3` (~55 unique tracks, 164 total phrases) succeeded cleanly. Could be input-count-dependent ffmpeg behaviour, or an end-of-stream buffer warning elevated to error. Worth a one-pass investigation: instrument `mix.sh` to surface stderr from ffmpeg, and consider chunked concat for very long inputs.
 
 ## Next
 

@@ -315,9 +315,14 @@ def main() -> int:
              f"intro skip: {args.intro_bars} bars",
              ""]
     cursor = 0.0
+    last_key: tuple | None = None
     for i, (artist, title, bpm, path, start_s, dur_s) in enumerate(clips):
-        mm, ss = divmod(int(cursor), 60)
-        lines.append(f"{mm:02d}:{ss:02d}  {artist} — {title}  [{bpm:.1f}bpm → {start_s:.1f}s in track]")
+        key = (artist, title)
+        if key != last_key:
+            mm, ss = divmod(int(cursor), 60)
+            suffix = f" (×{args.phrases_per_track})" if args.phrases_per_track > 1 else ""
+            lines.append(f"{mm:02d}:{ss:02d}  {artist} — {title}{suffix}  [{bpm:.1f}bpm → {start_s:.1f}s in track]")
+            last_key = key
         d = probe_duration(retempoed[i])
         cursor += d - (xfade_s if i < len(clips) - 1 else 0)
     tracklist_path.write_text("\n".join(lines) + "\n")
