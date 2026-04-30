@@ -100,7 +100,8 @@ def extract_and_retempo(
 def select_tracks(conn: sqlite3.Connection, target_bpm: float, bpm_range: float) -> list:
     rows = conn.execute(
         """
-        SELECT artist, title, bpm, duration_s, path, traktor_beatgrid_ms
+        SELECT id, artist, title, bpm, duration_s, path, traktor_beatgrid_ms,
+               COALESCE(phasing_heavy, 0)
         FROM tracks
         WHERE bpm BETWEEN ? AND ?
           AND traktor_beatgrid_ms IS NOT NULL
@@ -111,8 +112,24 @@ def select_tracks(conn: sqlite3.Connection, target_bpm: float, bpm_range: float)
     ).fetchall()
     seen: dict = {}
     for r in rows:
-        seen.setdefault((r[0], r[1]), r)
+        seen.setdefault((r[1], r[2]), r)
     return list(seen.values())
+
+
+def find_drop_cue_ms(conn: sqlite3.Connection, track_id: int, cue_name: str) -> float | None:
+    """Return start_ms of the first cue whose NAME matches cue_name (ci), else None."""
+    row = conn.execute(
+        "SELECT start_ms FROM traktor_cues "
+        "WHERE track_id = ? AND LOWER(name) = LOWER(?) "
+        "ORDER BY start_ms LIMIT 1",
+        (track_id, cue_name),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def snap_to_bar(t_ms: float, grid_ms: float, bar_ms: float) -> float:
+    """Snap an arbitrary timecode to the nearest bar boundary on the grid."""
+    return grid_ms + round((t_ms - grid_ms) / bar_ms) * bar_ms
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +161,11 @@ def main() -> int:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--count", type=int, default=None,
                    help="exact number of phrases to include (overrides --duration-min)")
+    p.add_argument("--cue-name", default="drop",
+                   help="Traktor hotcue NAME to use as phrase anchor when present "
+                        "(case-insensitive; falls back to grid+intro-bars; default: 'drop')")
+    p.add_argument("--post-cue-bars", type=int, default=0,
+                   help="bars to advance past the cue before cutting (default: 0)")
     p.add_argument("--first-artists", default="",
                    help="comma-separated artist name fragments to prioritise first "
                         "(case-insensitive substring match, e.g. 'technimatic,technicolour')")
@@ -176,7 +198,6 @@ def main() -> int:
 
     conn = sqlite3.connect(args.db)
     tracks = select_tracks(conn, args.target_bpm, args.bpm_range)
-    conn.close()
 
     print(f"Eligible tracks (±{args.bpm_range}bpm, has beatgrid): {len(tracks)}", file=sys.stderr)
     print(f"Need {n_phrases} phrases × {phrase_s:.1f}s ({args.phrase_bars} bars)", file=sys.stderr)
@@ -196,20 +217,34 @@ def main() -> int:
     clips: list[tuple] = []
     seen_artists: set[str] = set()
 
+    cue_used = 0
+    last_was_phased = False
     for row in tracks:
         if len(clips) >= n_phrases:
             break
-        artist, title, bpm, duration_s, path, grid_ms = row
+        track_id, artist, title, bpm, duration_s, path, grid_ms, phasing_heavy = row
         akey = (artist or "").lower().strip()
         if akey in seen_artists:
             continue
+        # Avoid placing two phasing-heavy tracks in adjacent crossfade windows —
+        # phased drums against phased drums = comb-filter mush regardless of grid.
+        if last_was_phased and phasing_heavy:
+            continue
 
         native_bar_ms = 4 * 60000 / bpm
+        cue_ms = find_drop_cue_ms(conn, track_id, args.cue_name)
+        if cue_ms is not None:
+            anchor_ms = snap_to_bar(cue_ms, grid_ms, native_bar_ms) \
+                + args.post_cue_bars * native_bar_ms
+            anchor_label = f"cue:{args.cue_name}@{cue_ms/1000:.2f}s"
+        else:
+            anchor_ms = grid_ms + args.intro_bars * native_bar_ms
+            anchor_label = f"grid+{args.intro_bars}bars"
         added = 0
         for phrase_idx in range(args.phrases_per_track):
             if len(clips) >= n_phrases:
                 break
-            start_ms = grid_ms + (args.intro_bars + phrase_idx * args.phrase_bars) * native_bar_ms
+            start_ms = anchor_ms + phrase_idx * args.phrase_bars * native_bar_ms
             dur_ms = args.phrase_bars * native_bar_ms
             # Ensure phrase fits within the track
             if (start_ms + dur_ms) / 1000 > duration_s - 1.0:
@@ -221,6 +256,15 @@ def main() -> int:
 
         if added > 0:
             seen_artists.add(akey)
+            last_was_phased = bool(phasing_heavy)
+            if cue_ms is not None:
+                cue_used += 1
+            tag = " [phasing]" if phasing_heavy else ""
+            print(f"  pick: {artist} — {title}{tag}  ({anchor_label})", file=sys.stderr)
+
+    conn.close()
+    print(f"Cue-anchored: {cue_used}/{len(clips)} phrases (rest via grid+intro-bars)",
+          file=sys.stderr)
 
     if len(clips) < 2:
         print("Not enough eligible tracks — try widening --bpm-range or reducing --duration-min",
