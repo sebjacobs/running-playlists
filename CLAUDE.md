@@ -8,6 +8,11 @@ Tools for building tempo-ramped run playlists. See `README.md` for the pipeline 
 - **Scratch:** put temporary output in `tmp/` (gitignored). Never `/tmp`
 - **DB:** `music.db` lives at the repo root, gitignored — it's data, regenerable via `scripts/index_music.py`
 
+## Terminology
+
+- **"mix" / "run mix"** → run playlist (`generate_run_playlists.py`)
+- **"strides mix" / "mini mix" / "minimix"** → strides workout mix (`generate_strides_workout.py`)
+
 ## Current focus
 
 Two active generators:
