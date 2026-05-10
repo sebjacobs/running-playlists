@@ -178,7 +178,7 @@ def render_playlist(n: int, pl: list[tuple], total_s: float, slug: str,
         label = f"{a} — {t}" if (a or t) else Path(path).name
         print(f"  {int(bpm)} bpm  {d/60:4.1f}m  {label}", file=sys.stderr)
 
-    work = sources_dir / f"{slug}_work"
+    work = sources_dir / f"{slug}_work_{os.getpid()}"
     work.mkdir(exist_ok=True)
     jobs = []
     for i, (_a, _t, bpm, _d, path) in enumerate(pl, 1):

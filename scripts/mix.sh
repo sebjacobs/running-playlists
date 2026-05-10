@@ -44,11 +44,12 @@ filter=""
 prev="[0]"
 for ((i = 1; i < n; i++)); do
   label="[a${i}]"
-  [[ $i -eq $((n - 1)) ]] && label=""
   filter+="${prev}[${i}]acrossfade=d=${DURATION}:c1=tri:c2=tri${label};"
   prev="[a${i}]"
 done
-filter=${filter%;}
+# acrossfade emits frames with non-standard padding that libmp3lame rejects
+# ("inadequate AVFrame plane padding") on long mixes — aresample normalizes.
+filter+="${prev}aresample=44100"
 
 printf 'mixing %d tracks with %ss crossfade → %s\n' "$n" "$DURATION" "$output"
 ffmpeg -y "${ff_inputs[@]}" -filter_complex "$filter" "$output"
