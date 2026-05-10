@@ -38,7 +38,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 MIX_SH = REPO / "scripts" / "mix.sh"
 DEFAULT_DB = REPO / "music.db"
-DEFAULT_OUT = REPO / "tmp" / "playlists" / "strides"
+PLAYLISTS_ROOT = REPO / "tmp" / "playlists"
 
 
 # ---------------------------------------------------------------------------
@@ -147,11 +147,15 @@ def main() -> int:
     p.add_argument("--first-artists", default="",
                    help="comma-separated artist name fragments to prioritise first "
                         "(case-insensitive substring match, e.g. 'technimatic,technicolour')")
-    p.add_argument("--output-dir", type=Path, default=DEFAULT_OUT)
+    p.add_argument("--output-dir", type=Path, default=None,
+                   help="output dir (default: tmp/playlists/<bpm>bpm/strides/)")
     p.add_argument("--cover", type=Path, default=REPO / "assets" / "cover.png",
                    help="cover image for mp4 wrap")
     p.add_argument("--no-video", action="store_true", help="skip mp4 wrap")
     args = p.parse_args()
+
+    if args.output_dir is None:
+        args.output_dir = PLAYLISTS_ROOT / f"{int(args.target_bpm)}bpm" / "strides"
 
     # Derived timing constants (all at target BPM after retempoing)
     bar_s = 4 * 60 / args.target_bpm
