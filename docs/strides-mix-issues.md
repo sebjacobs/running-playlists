@@ -106,34 +106,7 @@ hotcue labelling required per track.
 
 ---
 
-## Issue 4 — Phasing-heavy production (Marcus Intalex et al)
-
-**What it sounds like:** in a long crossfade between two phasing-heavy
-tracks, the drums turn into a mushy, smeared, comb-filtered mess —
-regardless of grid alignment.
-
-**Why it happens:** flanging/phasing on the drum bus modulates transient
-peak positions over time. Two phased tracks overlapped = comb-filter on
-comb-filter. Audibly chaotic even with perfect grids.
-
-**Detect:**
-- **By ear** is the reliable signal. The track will have an obvious sweep on
-  the drums.
-- Auto-detection is possible (look for moving spectral notches in HF) but
-  unreliable; not worth automating.
-
-**Fix:**
-- Manual: `UPDATE tracks SET phasing_heavy = 1 WHERE artist = '...' AND
-  title = '...'`
-- Generator's `select_tracks` skips picking a phasing-heavy track if the
-  previous pick was also phasing-heavy — guarantees a non-phased separator.
-
-**Status:** `phasing_heavy` column + spread-apart constraint built. BMT and
-Commix Marcus Intalex remixes flagged.
-
----
-
-## Issue 5 — Phrase lands on a breakdown / atmospheric section
+## Issue 4 — Phrase lands on a breakdown / atmospheric section
 
 **What it sounds like:** the chosen 32-bar window contains pads / vocals /
 atmospherics rather than full drums. Crossfading it against a drum-heavy
@@ -158,6 +131,33 @@ a long breakdown around bar 48, the cut lands in the wrong place.
 
 **Status:** cue-aware selection built. Auto-detection of low-energy phrase
 windows not built.
+
+---
+
+## Issue 5 — Phasing-heavy production (Marcus Intalex et al)
+
+**What it sounds like:** in a long crossfade between two phasing-heavy
+tracks, the drums turn into a mushy, smeared, comb-filtered mess —
+regardless of grid alignment.
+
+**Why it happens:** flanging/phasing on the drum bus modulates transient
+peak positions over time. Two phased tracks overlapped = comb-filter on
+comb-filter. Audibly chaotic even with perfect grids.
+
+**Detect:**
+- **By ear** is the reliable signal. The track will have an obvious sweep on
+  the drums.
+- Auto-detection is possible (look for moving spectral notches in HF) but
+  unreliable; not worth automating.
+
+**Fix:**
+- Manual: `UPDATE tracks SET phasing_heavy = 1 WHERE artist = '...' AND
+  title = '...'`
+- Generator's `select_tracks` skips picking a phasing-heavy track if the
+  previous pick was also phasing-heavy — guarantees a non-phased separator.
+
+**Status:** `phasing_heavy` column + spread-apart constraint built. BMT and
+Commix Marcus Intalex remixes flagged.
 
 ---
 
