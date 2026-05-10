@@ -30,6 +30,7 @@ Traktor Pro 3 is a secondary source of BPM / key / beatgrid anchors. Export the 
 - `ffmpeg` / `ffprobe` — tag extraction, stream inspection, audio conversion
 - `aubio` — BPM detection (fallback only; unreliable on breakbeat-led genres)
 - `rubberband` / `ffmpeg atempo` — tempo adjustment without pitch change
+- `youtubeuploader` (Go binary) — wrapped by `scripts/upload_to_youtube.py`. Derives metadata + tracklist + per-(kind, BPM) playlist from the filename convention `YYYY-MM-DD_(run|strides)_<bpm>bpm_<duration>min[_<index>].mp4`. Credentials at `~/.config/youtubeuploader/`. All uploads private, not made-for-kids.
 
 ## External data
 
