@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import math
+import os
 import random
 import shutil
 import sqlite3
@@ -227,7 +228,7 @@ def main() -> int:
 
     # Setup output dirs
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    work_dir = args.output_dir / "_work"
+    work_dir = args.output_dir / f"_work_{os.getpid()}"
     work_dir.mkdir(exist_ok=True)
 
     # Extract and retempo each phrase
