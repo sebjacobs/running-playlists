@@ -11,28 +11,33 @@ place a cue or pick a true downbeat.
 
 ---
 
-## Issue 1 — Tempo snap (Traktor rounds BPM to integers)
+## Issue 1 — Incorrect tempo
 
 **What it sounds like:** drums in two adjacent tracks gradually drift apart
 across a long crossfade. By the end of a 22 s overlap the kicks are clearly
 out of time.
 
-**Why it happens:** Traktor's autodetect snaps to integer BPMs (e.g. 173.0
-when the true tempo is 172.3). Over 22 s of crossfade a 0.4% error compounds
-to ~95 ms — close to ¼ of a beat.
+**Why it happens:** stored `traktor_bpm` doesn't match the track's true
+tempo. Auto-detect can land on a confident-looking but slightly wrong value,
+halftime corrections can be applied without re-tapping, manual tap can land
+imprecise. Even ~0.4 % off (e.g. 173.0 stored vs 172.3 true) drifts ~95 ms
+over a 22 s overlap — close to ¼ of a beat. Note that Traktor's autodetect
+normally produces 4+ decimal-place values; integer or 1 dp BPMs are the
+anomaly worth checking first (36 of 1917 tracks at time of writing).
 
 **Detect:**
 - Run `scripts/diag_grid_phase.py --search "<artist>:<title>" --start <s>
   --dur 16` — look for **drift in beat-offset values** (creeping in one
   direction over time) rather than random scatter.
-- Catalogue-wide screen: any track with `bpm` to 3+ decimals of an integer
-  *and* a non-zero drift slope is a candidate.
+- Catalogue-wide screen: tracks where stored BPM is integer or 1 dp while
+  the catalogue's typical precision is 4+ dp are the highest-value
+  candidates to tap-tempo.
 - Note: `~–20 ms` median offset is the **noise floor** of the spectral-flux
   onset detector — that's the FD baseline, not a real issue.
 
 **Fix:**
-- Manual: tap-tempo in Traktor → Edit → Beat Grid; enable fractional BPM;
-  re-export NML; re-run `import_traktor.py`.
+- Manual: tap-tempo in Traktor (preserves sub-integer precision) → Edit →
+  Beat Grid; re-export NML; re-run `import_traktor.py`.
 - Data-side: `UPDATE tracks SET bpm = <corrected> WHERE id = ?`. Or via a
   proposed `grid_overrides` table that the generator coalesces from first.
 
@@ -156,7 +161,12 @@ windows not built.
 
 ---
 
-## Issue 6 — Key clash (not yet investigated)
+# Out of scope (for now)
+
+The following are real concerns but not currently in scope for the strides
+diagnostic effort. Listed here so they aren't forgotten.
+
+## Key clash
 
 **What it sounds like:** two adjacent tracks fight harmonically — one's bass
 note clashes with the other's pad/vocal.
@@ -173,9 +183,7 @@ note clashes with the other's pad/vocal.
 
 **Status:** data available, no constraint built.
 
----
-
-## Issue 7 — Mixing environment / monitoring chain
+## Mixing environment / monitoring chain
 
 Documented separately in `docs/traktor-setup.md`. In short: bad monitoring
 (BT HFP fallback, latency-mismatched aggregate, no proper bass response)
